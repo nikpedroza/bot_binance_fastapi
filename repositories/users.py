@@ -12,7 +12,7 @@ class UsersRepository():
     def _base_active_query(self) -> Users | None:
         return select(Users).where(Users.is_active == True)
     
-    async def get_user(self, user: UserLogin):
+    async def get_user(self, user: UserLogin) -> None | Users:
         query = self._base_active_query().where(Users.username == user.username)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
@@ -20,3 +20,8 @@ class UsersRepository():
     async def update_last_login(self, user: Users):
         user.last_login = datetime.now(timezone.utc)
         await self.db.commit()
+    
+    async def get_user_by_username(self, username: str) -> None | Users:
+        query = self._base_active_query().where(Users.username == username)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()

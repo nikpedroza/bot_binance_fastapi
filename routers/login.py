@@ -2,15 +2,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from auth import verify_password, crear_token
+from auth import verify_password, create_token
 from database import get_db
 from repositories import UsersRepository
 
 from schema import UserLogin
 
-login_router = APIRouter()
+router = APIRouter()
 
-@login_router.post("/")
+@router.post("/")
 async def login(
     income_user : UserLogin,
     db : AsyncSession = Depends(get_db)
@@ -24,7 +24,7 @@ async def login(
 
     await user_repo.update_last_login(usuario)
 
-    access_token = crear_token(
+    access_token = create_token(
         {"sub":income_user.username}
     )
 

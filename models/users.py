@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP
+from sqlalchemy.sql import func
 from database import Base
  
 class Users(Base):
@@ -8,5 +9,5 @@ class Users(Base):
     username = Column(String(50), nullable=False)
     password_hash = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
-    created_at = Column(TIMESTAMP)
-    last_login = Column(TIMESTAMP, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    last_login = Column(TIMESTAMP(timezone=True), nullable=True)
