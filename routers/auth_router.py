@@ -22,6 +22,8 @@ async def login(
     if not verify_password(income_user, usuario):
         raise HTTPException(status_code=403, detail={"msg":"Credenciales incorrectas"})
 
+    await user_repo.update_last_login(usuario)
+
     access_token = crear_token(
         {"sub":income_user.username}
     )
