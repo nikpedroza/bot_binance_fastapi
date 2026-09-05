@@ -15,3 +15,25 @@ CREATE TABLE public.binance_keys (
     api_secret text NOT NULL,
     alias character varying(50)
 );
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE public.trades (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    entrada numeric NOT NULL,
+    salida numeric NOT NULL,
+    tipo character varying(10) NOT NULL,
+    razon_salida character varying(50),
+    pnl_neto numeric NOT NULL,
+    comision numeric,
+    funding_total numeric,
+    tiempo_entrada timestamp without time zone,
+    tiempo_salida timestamp without time zone,
+    balance_acumulado numeric,
+    strategy character varying(10) NOT NULL,
+    order_id_market bigint,
+    order_id_sl bigint,
+    order_id_tp bigint,
+    created_at timestamp without time zone DEFAULT now()
+);
