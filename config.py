@@ -39,6 +39,10 @@ class Config:
     @property
     def JWT_EXPIRE_MINUTES(self):
         return os.getenv("JWT_EXPIRE_MINUTES")
+    
+    @property
+    def FERNET_KEY(self):
+        return os.getenv("FERNET_KEY")
 
     @property
     def ALGORITH(self):

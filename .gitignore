@@ -8,6 +8,4 @@ __pycache__/
 *.log
 *.png
 *.jpg
-*.sql
 *.txt
-scripts/

@@ -2,8 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from routers.login import router as login_router
-from routers.status import router as status_router
+from routers import login_router, status_router
 from database import engine
 
 @asynccontextmanager
