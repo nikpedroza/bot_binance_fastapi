@@ -35,5 +35,3 @@ async def login(
         },
         status_code=200
     )
-    
-    
