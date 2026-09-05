@@ -1,10 +1,9 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text
+from sqlalchemy import Column, String, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
 from database import Base
 
-class Users(Base):
+class BinanceKeys(Base):
     __tablename__ = "binance_keys"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
