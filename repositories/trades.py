@@ -33,3 +33,12 @@ class TradesRepository():
         total = total_result.scalar()
 
         return trades, total
+    
+    async def get_all_trades_by_users(self, user_id: UUID) -> Trades:
+        query = select(Trades).where(Trades.user_id == user_id)
+        result = await self.db.execute(
+            query
+            .order_by(Trades.tiempo_entrada.asc())
+            )
+        return result.scalars().all()
+        

@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repositories import TradesRepository
-from schema import PaginatedTrades
+from schema import PaginatedTrades, TradesAnalysis
 from models import Users
 from auth import get_current_user
 from database import get_db
+from analysis import analyze_bot
 
 router = APIRouter()
 
@@ -31,3 +32,20 @@ async def trades(
         page_size=page_size,
         total_pages=-(-total // page_size)
     )
+
+@router.get("/analysis", response_model=TradesAnalysis)
+async def analysis(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+    ):
+    trades_repo = TradesRepository(db)
+    trades = await trades_repo.get_all_trades_by_users(current_user.id)
+
+    if not trades:
+        raise HTTPException(status_code=404, detail={"msg": "Usuario sin trades existentes"})
+    
+    resultado = analyze_bot(trades)
+    if resultado is None:
+        raise HTTPException(status_code=500, detail={"msg": "No se pudo generar el análisis"})
+    
+    return resultado

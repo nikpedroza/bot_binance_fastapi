@@ -1,0 +1,1 @@
+from analysis.quant_analysis import analyze_bot
