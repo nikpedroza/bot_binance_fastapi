@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, Numeric, BigInteger
+from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, Numeric, BigInteger, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from database import Base
@@ -8,6 +8,7 @@ class Trades(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    symbol = Column(String(20), nullable=False, server_default=text("'BTCUSDT'"))
 
     entrada = Column(Numeric, nullable=False)
     salida = Column(Numeric, nullable=False)

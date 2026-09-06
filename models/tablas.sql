@@ -21,6 +21,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE TABLE public.trades (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+    symbol character varying(20) NOT NULL DEFAULT 'BTCUSDT',
     entrada numeric NOT NULL,
     salida numeric NOT NULL,
     tipo character varying(10) NOT NULL,

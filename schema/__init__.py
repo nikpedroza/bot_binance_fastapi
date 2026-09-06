@@ -1,2 +1,2 @@
 from schema.login import UserLogin
-from schema.users import UserResponse
+from schema.users import Status
