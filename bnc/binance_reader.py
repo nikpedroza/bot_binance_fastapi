@@ -46,46 +46,53 @@ class BinanceAdmin():
                 self._manejar_error_api(e, "get_balance_futuros")
             print(f"✗ Error al obtener balance de futuros: {e}")
 
-    def get_posicion_activa(self, symbol: str) -> dict | None:
+    def get_posiciones_activas(self) -> list[dict]:
+        posiciones_abiertas = []
         try:
-            posiciones = self.client.futures_position_information(symbol=symbol)
+            posiciones = self.client.futures_position_information()
             for pos in posiciones:
                 amt = float(pos["positionAmt"])
-                if amt != 0.0:
-                    tipo = "LONG" if amt > 0 else "SHORT"
-                    entrada = float(pos["entryPrice"])
-                    sl, tp = self._buscar_sl_tp_activos(symbol)
+                if amt == 0.0:
+                    continue
 
-                    tiempo_entrada = None
-                    try:
-                        side_esperado = "BUY" if tipo == "LONG" else "SELL"
-                        trades = self.client.futures_account_trades(symbol=symbol, limit=50)
-                        idx_ultimo_cierre = -1
-                        for i, t in enumerate(trades):
-                            if float(t["realizedPnl"]) != 0.0:
-                                idx_ultimo_cierre = i
-                        trades_pos_actual = trades[idx_ultimo_cierre + 1:] if idx_ultimo_cierre != -1 else trades
-                        candidatos = [t for t in trades_pos_actual if t["side"] == side_esperado and float(t["realizedPnl"]) == 0.0]
-                        if candidatos:
-                            mas_antiguo = min(candidatos, key=lambda t: t["time"])
-                            tiempo_entrada = pd.to_datetime(int(mas_antiguo["time"]), unit="ms")
-                    except Exception as e:
-                        print(f"No se pudo reconstruir tiempo_entrada de posición recuperada: {e}")
+                symbol = pos["symbol"]
+                tipo = "LONG" if amt > 0 else "SHORT"
+                entrada = float(pos["entryPrice"])
+                sl, tp = self._buscar_sl_tp_activos(symbol)
 
-                    return {
-                        "en_posicion": True,
-                        "type": tipo,
-                        "entrada": entrada,
-                        "cantidad_btc": abs(amt),
-                        "cantidad_usdt": abs(amt) * entrada,
-                        "sl": sl,
-                        "tp": tp,
-                        "tiempo_entrada": tiempo_entrada,
-                    }
-            return None
+                tiempo_entrada = None
+                try:
+                    side_esperado = "BUY" if tipo == "LONG" else "SELL"
+                    trades = self.client.futures_account_trades(symbol=symbol, limit=50)
+                    idx_ultimo_cierre = -1
+                    for i, t in enumerate(trades):
+                        if float(t["realizedPnl"]) != 0.0:
+                            idx_ultimo_cierre = i
+                    trades_pos_actual = trades[idx_ultimo_cierre + 1:] if idx_ultimo_cierre != -1 else trades
+                    candidatos = [t for t in trades_pos_actual if t["side"] == side_esperado and float(t["realizedPnl"]) == 0.0]
+                    if candidatos:
+                        mas_antiguo = min(candidatos, key=lambda t: t["time"])
+                        tiempo_entrada = pd.to_datetime(int(mas_antiguo["time"]), unit="ms")
+                except Exception as e:
+                    print(f"No se pudo reconstruir tiempo_entrada de posición recuperada: {e}")
+
+                posiciones_abiertas.append({
+                    "symbol": symbol,
+                    "en_posicion": True,
+                    "type": tipo,
+                    "entrada": entrada,
+                    "cantidad": abs(amt),
+                    "cantidad_usdt": abs(amt) * entrada,
+                    "sl": sl,
+                    "tp": tp,
+                    "tiempo_entrada": tiempo_entrada,
+                })
+
+            return posiciones_abiertas
+
         except BinanceAPIException as e:
             if e.code == -2015:
-                self._manejar_error_api(e, "get_posicion_activa")
-            print(f"Error al consultar posición activa: {e}")
-            return None       
+                self._manejar_error_api(e, "get_posiciones_activas")
+            print(f"Error al consultar posiciones activas: {e}")
+            return []    
     
