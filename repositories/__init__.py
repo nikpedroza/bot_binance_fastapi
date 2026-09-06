@@ -1,2 +1,3 @@
 from repositories.users import UsersRepository
 from repositories.binancekeys import BinanceKeysRepository
+from repositories.trades import TradesRepository

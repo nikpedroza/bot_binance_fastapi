@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from routers import login_router, status_router
+from routers import login_router, status_router, trades_router
 from database import engine
 
 @asynccontextmanager
@@ -12,7 +12,11 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     print("Apagando Server")
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url="",
+    openapi_url=""
+    )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["127.0.0.1"],
@@ -20,3 +24,4 @@ app.add_middleware(
 
 app.include_router(login_router, prefix="/login", tags=["login"])
 app.include_router(status_router, prefix="/status", tags=["status"])
+app.include_router(trades_router, prefix="/trades", tags=["trades"])
