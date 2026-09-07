@@ -9,13 +9,19 @@ class ActivePositions(BaseModel):
     entrada: float
     cantidad: float
     cantidad_usdt: float
-    sl: float
-    tp: float
+    isolated_margin: float
+    leverage: int | None
+    precio_actual: float
+    pnl_usdt: float
+    pnl_pct: float | None
+    sl: float | None
+    tp: float | None
+    distancia_sl_pct: float | None
+    distancia_tp_pct: float | None
     tiempo_entrada: datetime
 
 class Status(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    username: str 
+    username: str
     balance: float | None
     posiciones: Optional[list[ActivePositions]]
-    

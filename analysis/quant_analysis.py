@@ -101,6 +101,13 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         df['drawdown_usd'] = df['balance'] - df['peak']
         df['drawdown_pct'] = np.where(df['peak'] > 0, (df['balance'] - df['peak']) / df['peak'], 0.0)
 
+        balance_curve = [
+            {
+                "fecha": row['tiempo_salida'].strftime('%Y-%m-%d'),
+                "balance": round(float(row['balance']), 2)
+            }
+            for _, row in df.iterrows()
+        ]
         max_dd_usd = float(df['drawdown_usd'].min())
         max_dd_pct = float(df['drawdown_pct'].min() * 100.0)
         recovery_factor = (total_pnl / abs(max_dd_usd)) if max_dd_usd != 0 else 0.0
@@ -221,6 +228,7 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
             "comisiones_totales": round(total_fees, 2),
             "impacto_comisiones": round(impacto_comisiones, 2),
             "rendimiento_mensual": rendimiento_mensual,
+            "balance_curve": balance_curve
         }
 
         return report

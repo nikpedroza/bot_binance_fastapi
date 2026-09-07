@@ -58,7 +58,23 @@ class BinanceAdmin():
                 symbol = pos["symbol"]
                 tipo = "LONG" if amt > 0 else "SHORT"
                 entrada = float(pos["entryPrice"])
+                precio_actual = float(pos["markPrice"])
+                pnl_usdt = float(pos["unRealizedProfit"])
+                notional = abs(float(pos["notional"]))
+                isolated_margin = float(pos.get("isolatedMargin", 0) or 0)
+
+                leverage = round(notional / isolated_margin) if isolated_margin > 0 else None
+                pnl_pct = (pnl_usdt / isolated_margin) * 100.0 if isolated_margin > 0 else None
+
                 sl, tp = self._buscar_sl_tp_activos(symbol)
+
+                direccion = 1 if tipo == "LONG" else -1
+                distancia_sl_pct = None
+                distancia_tp_pct = None
+                if sl is not None and precio_actual != 0:
+                    distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
+                if tp is not None and precio_actual != 0:
+                    distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
 
                 tiempo_entrada = None
                 try:
@@ -82,9 +98,16 @@ class BinanceAdmin():
                     "type": tipo,
                     "entrada": entrada,
                     "cantidad": abs(amt),
-                    "cantidad_usdt": abs(amt) * entrada,
+                    "cantidad_usdt": round(abs(amt) * entrada, 2),
+                    "leverage": leverage,
+                    "isolated_margin": round(isolated_margin, 2),
+                    "precio_actual": precio_actual,
+                    "pnl_usdt": round(pnl_usdt, 2),
+                    "pnl_pct": round(pnl_pct, 2) if pnl_pct is not None else None,
                     "sl": sl,
                     "tp": tp,
+                    "distancia_sl_pct": round(distancia_sl_pct, 2) if distancia_sl_pct is not None else None,
+                    "distancia_tp_pct": round(distancia_tp_pct, 2) if distancia_tp_pct is not None else None,
                     "tiempo_entrada": tiempo_entrada,
                 })
 
@@ -94,5 +117,4 @@ class BinanceAdmin():
             if e.code == -2015:
                 self._manejar_error_api(e, "get_posiciones_activas")
             print(f"Error al consultar posiciones activas: {e}")
-            return []    
-    
+            return []

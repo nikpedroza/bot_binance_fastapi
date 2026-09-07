@@ -44,6 +44,10 @@ class RendimientoMensual(BaseModel):
     month: int
     pnl_pct: float
 
+class BalanceCurve(BaseModel):
+    fecha: str
+    balance: float
+
 class TradesAnalysis(BaseModel):
     periodo: PeriodoAnalysis
     balance_inicial: float
@@ -78,3 +82,4 @@ class TradesAnalysis(BaseModel):
     comisiones_totales: float
     impacto_comisiones: float
     rendimiento_mensual: list[RendimientoMensual]
+    balance_curve: list[BalanceCurve]
