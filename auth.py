@@ -13,7 +13,7 @@ from schema import UserLogin
 from models import Users
 from config import config
 
-bearer = HTTPBearer()
+bearer = HTTPBearer(auto_error=False)   # Lo pasamos a False para devolver un error personalizado en get_current_user
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 fernet = Fernet(config.FERNET_KEY)
 
@@ -39,6 +39,9 @@ async def get_current_user(
     token: HTTPAuthorizationCredentials = Depends(bearer),
     db: AsyncSession = Depends(get_db)
 ) -> Users:
+    if token is None:
+        raise HTTPException(status_code=401, detail={"msg": "No autenticado"})
+
     user_repo = UsersRepository(db)
     payload = decode_token(token.credentials)
     username = payload.get("sub")
