@@ -17,8 +17,8 @@ class Trades(Base):
     pnl_neto = Column(Numeric, nullable=False)
     comision = Column(Numeric)
     funding_total = Column(Numeric)
-    tiempo_entrada = Column(TIMESTAMP(timezone=False))
-    tiempo_salida = Column(TIMESTAMP(timezone=False))
+    tiempo_entrada = Column(TIMESTAMP(timezone=True))
+    tiempo_salida = Column(TIMESTAMP(timezone=True))
     balance_acumulado = Column(Numeric)
     strategy = Column(String(10), nullable=False)
 

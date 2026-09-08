@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repositories import TradesRepository
-from schema import PaginatedTrades, TradesAnalysis
+from schema import PaginatedTrades, TradesAnalysis, NewTradeRequest
 from models import Users
 from auth import get_current_user
 from database import get_db
@@ -32,6 +33,24 @@ async def trades(
         page_size=page_size,
         total_pages=-(-total // page_size)
     )
+
+@router.post("/")
+async def add_trade(
+    new_trade: NewTradeRequest,
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    trades_repo = TradesRepository(db)
+    try:
+        await trades_repo.insert_trades(current_user.id, new_trade)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail={"msg": "No se pudo guardar el trade"})
+    return JSONResponse(
+        content={"msg": "Trade guardado correctamente"},
+        status_code=201
+        )
 
 @router.get("/analysis", response_model=TradesAnalysis)
 async def analysis(

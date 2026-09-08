@@ -83,3 +83,20 @@ class TradesAnalysis(BaseModel):
     impacto_comisiones: float
     rendimiento_mensual: list[RendimientoMensual]
     balance_curve: list[BalanceCurve]
+
+class NewTradeRequest(BaseModel):
+    symbol: str
+    entrada: float
+    salida: float
+    tipo: str
+    razon_salida: str | None = None
+    pnl_neto: float
+    comision: float | None = None
+    funding_total: float | None = None
+    tiempo_entrada: datetime
+    tiempo_salida: datetime
+    balance_acumulado: float | None = None
+    strategy: str
+    order_id_market: int | None = None
+    order_id_sl: int | None = None
+    order_id_tp: int | None = None
