@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from fastapi.responses import JSONResponse
+from exception_handler import register_exception_handlers, register_middlewares
 from fastapi.middleware.cors import CORSMiddleware
 from routers import login_router, status_router, trades_router
 from database import engine
+from config import setup_logging
+
+setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,9 +20,15 @@ app = FastAPI(
     docs_url="",
     openapi_url=""
     )
+
+register_exception_handlers(app)
+register_middlewares(app)    
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["127.0.0.1"],
+    allow_origins=["https://bncapibot.duckdns.org"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(login_router, prefix="/login", tags=["login"])

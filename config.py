@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+import logging
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "log")
@@ -8,6 +9,17 @@ os.makedirs(LOG_DIR, exist_ok=True)
 LOG_ERROR = os.path.join(LOG_DIR, "log_errores.log")
 
 ENV_PATH = os.path.join(BASE_DIR, ".env")
+
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(LOG_ERROR, encoding="utf-8"), 
+        ]
+    )
+
 
 class Config:
     def __init__(self):
