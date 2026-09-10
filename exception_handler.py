@@ -35,7 +35,8 @@ def register_exception_handlers(app: FastAPI):
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         cid = getattr(request.state, "correlation_id", None)
-        logger.error(f"[{cid}] HTTP {exc.status_code}: {exc.detail}")
+        if exc.status_code >= 500:
+            logger.error(f"[{cid}] {request.method} {request.url} → HTTP {exc.status_code}: {exc.detail}")
         content = exc.detail if isinstance(exc.detail, dict) else {"msg": exc.detail}
         return JSONResponse(
             status_code=exc.status_code,
