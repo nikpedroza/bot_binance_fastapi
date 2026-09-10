@@ -24,6 +24,7 @@ class PaginatedTrades(BaseModel):
     page_size: int
     total_pages: int
 
+#SCHEMAS PARA ANALISIS
 class PeriodoAnalysis(BaseModel):
     fecha_inicio: str | None
     fecha_fin: str | None
@@ -47,6 +48,16 @@ class RendimientoMensual(BaseModel):
 class BalanceCurve(BaseModel):
     fecha: str
     balance: float
+
+class DrawdownCurve(BaseModel):
+    fecha: str
+    drawdown_pct: float
+
+class RollingMetric(BaseModel):
+    trade_num: int
+    fecha: str
+    rolling_pf: float | None
+    rolling_expectancy: float
 
 class TradesAnalysis(BaseModel):
     periodo: PeriodoAnalysis
@@ -83,7 +94,10 @@ class TradesAnalysis(BaseModel):
     impacto_comisiones: float
     rendimiento_mensual: list[RendimientoMensual]
     balance_curve: list[BalanceCurve]
+    drawdown_curve: list[DrawdownCurve]
+    rolling_metrics: list[RollingMetric]
 
+#POST /trades/
 class NewTradeRequest(BaseModel):
     symbol: str
     entrada: float
