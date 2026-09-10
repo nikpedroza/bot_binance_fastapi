@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
 
 from repositories import TradesRepository
 from schema import PaginatedTrades, TradesAnalysis, NewTradeRequest
@@ -63,7 +64,7 @@ async def analysis(
     if not trades:
         raise HTTPException(status_code=404, detail={"msg": "Usuario sin trades existentes"})
     
-    resultado = analyze_bot(trades)
+    resultado = await asyncio.to_thread(analyze_bot, trades)
     if resultado is None:
         raise HTTPException(status_code=500, detail={"msg": "No se pudo generar el análisis"})
     
