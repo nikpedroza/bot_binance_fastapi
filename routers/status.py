@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
 
 from repositories import BinanceKeysRepository
 from bnc import BinanceAdmin
@@ -24,8 +25,10 @@ async def status(
     private_key = decode_key(binance_result.api_secret)
 
     bnc = BinanceAdmin(current_user.username, public_key, private_key)
-    balance = bnc.get_balance_futuros()
-    posiciones = bnc.get_posiciones_activas()
+    balance, posiciones = await asyncio.gather(
+        asyncio.to_thread(bnc.get_balance_futuros),
+        asyncio.to_thread(bnc.get_posiciones_activas),
+    )
     return Status(
         username = current_user.username,
         balance = balance,
