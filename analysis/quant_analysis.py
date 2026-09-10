@@ -108,6 +108,15 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
             }
             for _, row in df.iterrows()
         ]
+
+        drawdown_curve = [
+            {
+                "fecha": row['tiempo_salida'].strftime('%Y-%m-%d'),
+                "drawdown_pct": round(float(row['drawdown_pct']) * 100.0, 2)
+            }
+            for _, row in df.iterrows()
+        ]
+
         max_dd_usd = float(df['drawdown_usd'].min())
         max_dd_pct = float(df['drawdown_pct'].min() * 100.0)
         recovery_factor = (total_pnl / abs(max_dd_usd)) if max_dd_usd != 0 else 0.0
@@ -158,6 +167,30 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
 
         std_pnl = float(df['pnl_neto'].std())
         sqn = (np.sqrt(total_trades) * float(df['pnl_neto'].mean()) / std_pnl) if (std_pnl != 0 and not np.isnan(std_pnl)) else 0.0
+
+        # ROLLING PROFIT FACTOR & EXPECTANCY
+        ROLLING_WINDOW = 20  #Ajustar a 50 una vez tengamos minimo 50trades
+        pos_pnl = df['pnl_neto'].apply(lambda x: x if x > 0 else 0.0)
+        neg_pnl = df['pnl_neto'].apply(lambda x: abs(x) if x < 0 else 0.0)
+
+        roll_pos = pos_pnl.rolling(window=ROLLING_WINDOW, min_periods=1).sum()
+        roll_neg = neg_pnl.rolling(window=ROLLING_WINDOW, min_periods=1).sum()
+
+        rolling_pf_series = pd.Series(np.nan, index=df.index)
+        valid_loss = roll_neg > 0
+        rolling_pf_series[valid_loss] = roll_pos[valid_loss] / roll_neg[valid_loss]
+
+        rolling_exp_series = df['pnl_neto'].rolling(window=ROLLING_WINDOW, min_periods=1).mean()
+
+        rolling_metrics = [
+            {
+                "trade_num": i + 1,
+                "fecha": row['tiempo_salida'].strftime('%Y-%m-%d'),
+                "rolling_pf": round(float(rolling_pf_series.iloc[i]), 2) if not pd.isna(rolling_pf_series.iloc[i]) else None,
+                "rolling_expectancy": round(float(rolling_exp_series.iloc[i]), 2)
+            }
+            for i, (_, row) in enumerate(df.iterrows())
+        ]
 
         # 6. ANÁLISIS TEMPORAL
         df['hour'] = df['tiempo_salida'].dt.hour
@@ -228,7 +261,9 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
             "comisiones_totales": round(total_fees, 2),
             "impacto_comisiones": round(impacto_comisiones, 2),
             "rendimiento_mensual": rendimiento_mensual,
-            "balance_curve": balance_curve
+            "balance_curve": balance_curve,
+            "drawdown_curve": drawdown_curve,
+            "rolling_metrics": rolling_metrics
         }
 
         return report
