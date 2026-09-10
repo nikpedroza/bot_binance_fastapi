@@ -1,10 +1,12 @@
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import traceback
 import pandas as pd
 
 from config import LOG_ERROR
+
+POSICIONES_CACHE = {}
 
 class BinanceAdmin():
     def __init__(self, username, api_key_public, api_key_secret):
@@ -47,6 +49,8 @@ class BinanceAdmin():
             print(f"✗ Error al obtener balance de futuros: {e}")
 
     def get_posiciones_activas(self) -> list[dict]:
+        global POSICIONES_CACHE
+        user_cacheado = POSICIONES_CACHE.get(self.username, {})
         posiciones_abiertas = []
         try:
             posiciones = self.client.futures_position_information()
@@ -66,31 +70,51 @@ class BinanceAdmin():
                 leverage = round(notional / isolated_margin) if isolated_margin > 0 else None
                 pnl_pct = (pnl_usdt / isolated_margin) * 100.0 if isolated_margin > 0 else None
 
-                sl, tp = self._buscar_sl_tp_activos(symbol)
-
-                direccion = 1 if tipo == "LONG" else -1
                 distancia_sl_pct = None
                 distancia_tp_pct = None
-                if sl is not None and precio_actual != 0:
-                    distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
-                if tp is not None and precio_actual != 0:
-                    distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
+                symbol_cacheado = user_cacheado.get(symbol, {})
 
-                tiempo_entrada = None
-                try:
-                    side_esperado = "BUY" if tipo == "LONG" else "SELL"
-                    trades = self.client.futures_account_trades(symbol=symbol, limit=50)
-                    idx_ultimo_cierre = -1
-                    for i, t in enumerate(trades):
-                        if float(t["realizedPnl"]) != 0.0:
-                            idx_ultimo_cierre = i
-                    trades_pos_actual = trades[idx_ultimo_cierre + 1:] if idx_ultimo_cierre != -1 else trades
-                    candidatos = [t for t in trades_pos_actual if t["side"] == side_esperado and float(t["realizedPnl"]) == 0.0]
-                    if candidatos:
-                        mas_antiguo = min(candidatos, key=lambda t: t["time"])
-                        tiempo_entrada = pd.to_datetime(int(mas_antiguo["time"]), unit="ms")
-                except Exception as e:
-                    print(f"No se pudo reconstruir tiempo_entrada de posición recuperada: {e}")
+                if symbol_cacheado and datetime.now(timezone.utc) - (symbol_cacheado.get("last_update") or datetime.min) < timedelta(seconds=30):
+                    sl = symbol_cacheado.get("sl")
+                    tp = symbol_cacheado.get("tp")
+                    tiempo_entrada = symbol_cacheado.get("tiempo_entrada")
+                    direccion = 1 if tipo == "LONG" else -1
+                    if sl is not None and precio_actual != 0:
+                        distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
+                    if tp is not None and precio_actual != 0:
+                        distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
+                else:
+                    sl, tp = self._buscar_sl_tp_activos(symbol)
+
+                    direccion = 1 if tipo == "LONG" else -1
+                    if sl is not None and precio_actual != 0:
+                        distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
+                    if tp is not None and precio_actual != 0:
+                        distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
+
+                    tiempo_entrada = None
+                    try:
+                        side_esperado = "BUY" if tipo == "LONG" else "SELL"
+                        trades = self.client.futures_account_trades(symbol=symbol, limit=50)
+                        idx_ultimo_cierre = -1
+                        for i, t in enumerate(trades):
+                            if float(t["realizedPnl"]) != 0.0:
+                                idx_ultimo_cierre = i
+                        trades_pos_actual = trades[idx_ultimo_cierre + 1:] if idx_ultimo_cierre != -1 else trades
+                        candidatos = [t for t in trades_pos_actual if t["side"] == side_esperado and float(t["realizedPnl"]) == 0.0]
+                        if candidatos:
+                            mas_antiguo = min(candidatos, key=lambda t: t["time"])
+                            tiempo_entrada = pd.to_datetime(int(mas_antiguo["time"]), unit="ms")
+                    except Exception as e:
+                        print(f"No se pudo reconstruir tiempo_entrada de posición recuperada: {e}")
+
+                    POSICIONES_CACHE.setdefault(self.username, {})
+                    POSICIONES_CACHE[self.username][symbol] = {
+                        "sl": sl,
+                        "tp": tp,
+                        "tiempo_entrada": tiempo_entrada,
+                        "last_update": datetime.now(timezone.utc)
+                    }
 
                 posiciones_abiertas.append({
                     "symbol": symbol,
