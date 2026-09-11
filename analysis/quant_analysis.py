@@ -1,11 +1,12 @@
 from datetime import datetime
-import traceback
 import pandas as pd
 import numpy as np
+import logging
 
 from config import LOG_ERROR
 from models import Trades
 
+logger = logging.getLogger(__name__)
 
 def analyze_bot(trades: list[Trades]) -> dict | None:
     try:
@@ -269,8 +270,5 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         return report
 
     except Exception as e:
-        msg = f"Error al generar reporte de análisis: {e}"
-        print(f"[ERROR] {msg}")
-        with open(LOG_ERROR, "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now()}] [quant_analysis] {msg}\n{traceback.format_exc()}\n")
+        logger.error(f"Error al generar reporte de analisis: {e}", exc_info=True)
         return None

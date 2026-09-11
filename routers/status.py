@@ -4,6 +4,7 @@ import asyncio
 
 from repositories import BinanceKeysRepository
 from bnc import BinanceAdmin
+from bnc.binance_reader import BinanceConnectionError
 from schema import Status
 from models import Users
 from auth import get_current_user, decode_key
@@ -25,10 +26,15 @@ async def status(
     private_key = decode_key(binance_result.api_secret)
 
     bnc = BinanceAdmin(current_user.username, public_key, private_key)
-    balance, posiciones = await asyncio.gather(
-        asyncio.to_thread(bnc.get_balance_futuros),
-        asyncio.to_thread(bnc.get_posiciones_activas),
-    )
+
+    try:
+        balance, posiciones = await asyncio.gather(
+            asyncio.to_thread(bnc.get_balance_futuros),
+            asyncio.to_thread(bnc.get_posiciones_activas),
+        )
+    except BinanceConnectionError:
+        raise HTTPException(status_code=503, detail={"msg": "No se pudo conectar con Binance. Intente más tarde."})
+
     return Status(
         username = current_user.username,
         balance = balance,

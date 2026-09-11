@@ -1,26 +1,21 @@
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from datetime import datetime, timezone, timedelta
-import traceback
 import pandas as pd
+import logging
 
-from config import LOG_ERROR
+logger = logging.getLogger(__name__)
 
 POSICIONES_CACHE = {}
+
+class BinanceConnectionError(Exception):
+    pass
 
 class BinanceAdmin():
     def __init__(self, username, api_key_public, api_key_secret):
         self.username = username
         self.client = Client(api_key_public, api_key_secret)
 
-    def _manejar_error_api(self, e, contexto: str):
-        if hasattr(e, 'code') and e.code == -2015:
-            msg = f"Error -2015 (IP cambió o key revocada) en {contexto}."
-            print(msg)
-            with open(LOG_ERROR, "a", encoding="utf-8") as f:
-                f.write(f"[{datetime.now()}] [{self.username}] {msg}\n{traceback.format_exc()}\n")
-            raise e
-    
     def _buscar_sl_tp_activos(self, symbol: str) -> tuple[float | None, float | None]:
         sl, tp = None, None
         try:
@@ -30,8 +25,8 @@ class BinanceAdmin():
                     sl = float(o["triggerPrice"])
                 elif o.get("orderType") == "TAKE_PROFIT_MARKET":
                     tp = float(o["triggerPrice"])
-        except Exception as e:
-            print(f"Error al buscar SL/TP activos: {e}")
+        except Exception:
+            logger.error("Error al buscar SL/TP activos", exc_info=True)
         return sl, tp
 
     def get_balance_futuros(self) -> float | None:
@@ -41,12 +36,11 @@ class BinanceAdmin():
                 if asset["asset"] == "USDT":
                     disponible = float(asset["availableBalance"])
                     return disponible
-            print("No se encontró balance USDT en futuros.")
+            logger.warning("No se encontro balance USDT en futuros.")
             return None
         except BinanceAPIException as e:
-            if e.code == -2015:
-                self._manejar_error_api(e, "get_balance_futuros")
-            print(f"✗ Error al obtener balance de futuros: {e}")
+            logger.error("Error al obtener balance de futuros",exc_info=True)
+            raise BinanceConnectionError("No se pudo obtener el balance de Binance") from e
 
     def get_posiciones_activas(self) -> list[dict]:
         global POSICIONES_CACHE
@@ -105,8 +99,8 @@ class BinanceAdmin():
                         if candidatos:
                             mas_antiguo = min(candidatos, key=lambda t: t["time"])
                             tiempo_entrada = pd.to_datetime(int(mas_antiguo["time"]), unit="ms")
-                    except Exception as e:
-                        print(f"No se pudo reconstruir tiempo_entrada de posición recuperada: {e}")
+                    except Exception:
+                        logger.error("No se pudo reconstruir tiempo_entrada de posición recuperada", exc_info=True)
 
                     POSICIONES_CACHE.setdefault(self.username, {})
                     POSICIONES_CACHE[self.username][symbol] = {
@@ -138,7 +132,5 @@ class BinanceAdmin():
             return posiciones_abiertas
 
         except BinanceAPIException as e:
-            if e.code == -2015:
-                self._manejar_error_api(e, "get_posiciones_activas")
-            print(f"Error al consultar posiciones activas: {e}")
-            return []
+            logger.error("Error al consultar posiciones activas", exc_info=True)
+            raise BinanceConnectionError("No se pudieron obtener las posiciones de Binance") from e
