@@ -1,1 +1,1 @@
-from analysis.quant_analysis import analyze_bot
+from analysis.quant_analysis import analyze_bot, generate_analysis_photo

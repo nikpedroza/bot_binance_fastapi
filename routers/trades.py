@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 
@@ -8,7 +8,7 @@ from schema import PaginatedTrades, TradesAnalysis, NewTradeRequest
 from models import Users
 from auth import get_current_user
 from database import get_db
-from analysis import analyze_bot
+from analysis import analyze_bot, generate_analysis_photo
 
 router = APIRouter()
 
@@ -69,3 +69,23 @@ async def analysis(
         raise HTTPException(status_code=500, detail={"msg": "No se pudo generar el análisis"})
     
     return resultado
+
+@router.get("/analysis-photo")
+async def analysis_photo(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+    ):
+    trades_repo = TradesRepository(db)
+    trades = await trades_repo.get_all_trades_by_users(current_user.id)
+
+    if not trades:
+        raise HTTPException(status_code=404, detail={"msg": "Usuario sin trades existentes"})
+    
+    buffer = await asyncio.to_thread(generate_analysis_photo, trades)
+    if buffer is None:
+        raise HTTPException(status_code=500, detail={"msg": "No se pudo generar el análisis"})
+    
+    return StreamingResponse(
+        buffer, 
+        status_code=200,
+        media_type="image/png")
