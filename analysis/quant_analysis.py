@@ -40,11 +40,10 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         df = pd.DataFrame(records)
 
         df['tiempo_salida'] = pd.to_datetime(df['tiempo_salida'])
-        df = df[df['tiempo_salida'].notna()].copy()
-        df = df.sort_values('tiempo_salida').reset_index(drop=True)
-
+        df = df[df['tiempo_salida'].notna()]
         if df.empty:
             return None
+        df = df.sort_values('tiempo_salida').reset_index(drop=True)
 
         primer_trade = df.iloc[0]
         primer_balance = float(primer_trade['balance_acumulado']) if primer_trade['balance_acumulado'] is not None else 0.0
@@ -63,23 +62,32 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         total_days = int((df['tiempo_salida'].max() - df['tiempo_salida'].min()).days)
         years_factor = total_days / 365.25 if total_days > 0 else 1.0
 
+        pnl_arr = df['pnl_neto'].to_numpy(dtype=float)
+        balance_arr = df['balance'].to_numpy(dtype=float)
+        fechas = df['tiempo_salida'].dt.strftime('%Y-%m-%d').to_numpy()
+
         # 1. EXPECTANCY Y EDGE REAL
-        wins = df[df['pnl_neto'] > 0]
-        losses = df[df['pnl_neto'] <= 0]
+        win_mask = pnl_arr > 0
+        loss_mask = pnl_arr <= 0
+        wins_pnl = pnl_arr[win_mask]
+        losses_pnl = pnl_arr[loss_mask]
 
         total_trades = len(df)
-        win_rate = len(wins) / total_trades if total_trades > 0 else 0.0
-        avg_win = float(wins['pnl_neto'].mean()) if len(wins) > 0 else 0.0
-        avg_loss = abs(float(losses['pnl_neto'].mean())) if len(losses) > 0 else 0.0
+        n_wins = len(wins_pnl)
+        n_losses = len(losses_pnl)
+
+        win_rate = n_wins / total_trades if total_trades > 0 else 0.0
+        avg_win = float(wins_pnl.mean()) if n_wins > 0 else 0.0
+        avg_loss = abs(float(losses_pnl.mean())) if n_losses > 0 else 0.0
         expectancy = (win_rate * avg_win) - ((1.0 - win_rate) * avg_loss)
         expectancy_anualizada = expectancy * (total_trades / years_factor) if years_factor > 0 else 0.0
 
-        sum_losses = abs(float(losses['pnl_neto'].sum()))
-        sum_wins = float(wins['pnl_neto'].sum())
+        sum_losses = abs(float(losses_pnl.sum()))
+        sum_wins = float(wins_pnl.sum())
         profit_factor = (sum_wins / sum_losses) if sum_losses != 0 else None
         reward_risk_ratio = (avg_win / avg_loss) if avg_loss != 0 else 0.0
 
-        sorted_pnl = sorted(df['pnl_neto'].values, reverse=True)
+        sorted_pnl = sorted(pnl_arr, reverse=True)
         top_5_pct_idx = max(1, int(total_trades * 0.05))
         top_5_pnl = sum(sorted_pnl[:top_5_pct_idx])
         dependencia_top_5_pct = (top_5_pnl / total_pnl) * 100.0 if total_pnl != 0 else 0.0
@@ -107,35 +115,29 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
                 "trades": int(len(sub))
             }
 
-        # 3. DRAWDOWN Y RECUPERACIÓN
-        df['peak'] = df['balance'].cummax()
-        df['drawdown_usd'] = df['balance'] - df['peak']
-        df['drawdown_pct'] = np.where(df['peak'] > 0, (df['balance'] - df['peak']) / df['peak'], 0.0)
+        # 3. DRAWDOWN Y RECUPERACIÓN (Vectorizado)
+        peaks = np.maximum.accumulate(balance_arr)
+        drawdown_usd = balance_arr - peaks
+        drawdown_pct = np.where(peaks > 0, drawdown_usd / peaks, 0.0)
 
         balance_curve = [
-            {
-                "fecha": row['tiempo_salida'].strftime('%Y-%m-%d'),
-                "balance": round(float(row['balance']), 2)
-            }
-            for _, row in df.iterrows()
+            {"fecha": str(f), "balance": round(float(b), 2)}
+            for f, b in zip(fechas, balance_arr)
         ]
 
         drawdown_curve = [
-            {
-                "fecha": row['tiempo_salida'].strftime('%Y-%m-%d'),
-                "drawdown_pct": round(float(row['drawdown_pct']) * 100.0, 2)
-            }
-            for _, row in df.iterrows()
+            {"fecha": str(f), "drawdown_pct": round(float(d) * 100.0, 2)}
+            for f, d in zip(fechas, drawdown_pct)
         ]
 
-        max_dd_usd = float(df['drawdown_usd'].min())
-        max_dd_pct = float(df['drawdown_pct'].min() * 100.0)
+        max_dd_usd = float(np.min(drawdown_usd))
+        max_dd_pct = float(np.min(drawdown_pct) * 100.0)
         recovery_factor = (total_pnl / abs(max_dd_usd)) if max_dd_usd != 0 else 0.0
 
-        df['underwater'] = df['drawdown_usd'] < 0
+        underwater_mask = drawdown_usd < 0
         streaks_uw = []
         count = 0
-        for val in df['underwater']:
+        for val in underwater_mask:
             if val:
                 count += 1
             else:
@@ -148,20 +150,21 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         promedio_trades_recuperacion = float(np.mean(streaks_uw)) if streaks_uw else 0.0
         max_trades_estancado = int(np.max(streaks_uw)) if streaks_uw else 0
 
-        # 4. ANÁLISIS DE RACHAS (STREAKS)
-        def get_max_streak(pnls, positive=True):
-            max_s = 0
-            curr_s = 0
-            for p in pnls:
-                if (p > 0 if positive else p <= 0):
-                    curr_s += 1
-                    max_s = max(max_s, curr_s)
-                else:
-                    curr_s = 0
-            return max_s
+        # 4. ANÁLISIS DE RACHAS (Un solo recorrido del array C)
+        max_rg = 0; curr_rg = 0
+        max_rp = 0; curr_rp = 0
+        for p in pnl_arr:
+            if p > 0:
+                curr_rg += 1
+                max_rg = max(max_rg, curr_rg)
+                curr_rp = 0
+            else:
+                curr_rp += 1
+                max_rp = max(max_rp, curr_rp)
+                curr_rg = 0
 
-        max_racha_ganadora = get_max_streak(df['pnl_neto'], True)
-        max_racha_perdedora = get_max_streak(df['pnl_neto'], False)
+        max_racha_ganadora = max_rg
+        max_racha_perdedora = max_rp
 
         # 5. RATIOS DE EFICIENCIA
         daily_returns = df.groupby(df['tiempo_salida'].dt.date)['pnl_neto'].sum() / balance_inicial
@@ -179,28 +182,27 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         std_pnl = float(df['pnl_neto'].std())
         sqn = (np.sqrt(total_trades) * float(df['pnl_neto'].mean()) / std_pnl) if (std_pnl != 0 and not np.isnan(std_pnl)) else 0.0
 
-        # ROLLING PROFIT FACTOR & EXPECTANCY
-        ROLLING_WINDOW = 20  #Ajustar a 50 una vez tengamos minimo 50trades
-        pos_pnl = df['pnl_neto'].apply(lambda x: x if x > 0 else 0.0)
-        neg_pnl = df['pnl_neto'].apply(lambda x: abs(x) if x < 0 else 0.0)
+        # ROLLING PROFIT FACTOR & EXPECTANCY (Vectorizado)
+        ROLLING_WINDOW = 20  # Ajustar a 50 una vez tengamos minimo 50 trades
+        pos_pnl_s = pd.Series(np.maximum(pnl_arr, 0.0))
+        neg_pnl_s = pd.Series(np.maximum(-pnl_arr, 0.0))
 
-        roll_pos = pos_pnl.rolling(window=ROLLING_WINDOW, min_periods=1).sum()
-        roll_neg = neg_pnl.rolling(window=ROLLING_WINDOW, min_periods=1).sum()
+        roll_pos = pos_pnl_s.rolling(window=ROLLING_WINDOW, min_periods=1).sum().to_numpy()
+        roll_neg = neg_pnl_s.rolling(window=ROLLING_WINDOW, min_periods=1).sum().to_numpy()
 
-        rolling_pf_series = pd.Series(np.nan, index=df.index)
-        valid_loss = roll_neg > 0
-        rolling_pf_series[valid_loss] = roll_pos[valid_loss] / roll_neg[valid_loss]
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rolling_pf_arr = np.where(roll_neg > 0, roll_pos / roll_neg, np.nan)
+        rolling_exp_arr = df['pnl_neto'].rolling(window=ROLLING_WINDOW, min_periods=1).mean().to_numpy()
 
-        rolling_exp_series = df['pnl_neto'].rolling(window=ROLLING_WINDOW, min_periods=1).mean()
-
+        nan_mask = np.isnan(rolling_pf_arr)
         rolling_metrics = [
             {
                 "trade_num": i + 1,
-                "fecha": row['tiempo_salida'].strftime('%Y-%m-%d'),
-                "rolling_pf": round(float(rolling_pf_series.iloc[i]), 2) if not pd.isna(rolling_pf_series.iloc[i]) else None,
-                "rolling_expectancy": round(float(rolling_exp_series.iloc[i]), 2)
+                "fecha": str(f),
+                "rolling_pf": round(float(rolling_pf_arr[i]), 2) if not nan_mask[i] else None,
+                "rolling_expectancy": round(float(rolling_exp_arr[i]), 2)
             }
-            for i, (_, row) in enumerate(df.iterrows())
+            for i, f in enumerate(fechas)
         ]
 
         # 6. ANÁLISIS TEMPORAL
@@ -224,13 +226,16 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         df['month'] = df['tiempo_salida'].dt.month
         df['year'] = df['tiempo_salida'].dt.year
         monthly_pnl = df.groupby(['year', 'month'])['pnl_neto'].sum().reset_index()
+        y_arr = monthly_pnl['year'].to_numpy(dtype=int)
+        m_arr = monthly_pnl['month'].to_numpy(dtype=int)
+        p_arr = np.round((monthly_pnl['pnl_neto'].to_numpy(dtype=float) / balance_inicial) * 100.0, 2)
         rendimiento_mensual = [
             {
-                "year": int(row['year']),
-                "month": int(row['month']),
-                "pnl_pct": round(float((row['pnl_neto'] / balance_inicial) * 100.0), 2)
+                "year": int(y),
+                "month": int(m),
+                "pnl_pct": float(p)
             }
-            for _, row in monthly_pnl.iterrows()
+            for y, m, p in zip(y_arr, m_arr, p_arr)
         ]
 
         # DICCIONARIO DE RESULTADOS CON CLAVES DE ANÁLISIS
@@ -244,8 +249,8 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
             "total_trades": total_trades,
             "total_pnl": round(total_pnl, 2),
             "win_rate": round(win_rate * 100.0, 2),
-            "trades_ganadores": int(len(wins)),
-            "trades_perdedores": int(len(losses)),
+            "trades_ganadores": int(n_wins),
+            "trades_perdedores": int(n_losses),
             "avg_win": round(avg_win, 2),
             "avg_loss": round(avg_loss, 2),
             "expectancy": round(expectancy, 2),
@@ -283,7 +288,7 @@ def analyze_bot(trades: list[Trades]) -> dict | None:
         logger.error(f"Error al generar reporte de analisis: {e}", exc_info=True)
         return None
 
-# ENDPOINT /photo
+# ENDPOINT /analysis-photo
 def generate_analysis_photo(trades: list[Trades], rolling_window: int = 50, dpi: int = 150) -> io.BytesIO | None:
     try:
         df = preparar_datos_dashboard(trades)
