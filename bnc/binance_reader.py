@@ -3,6 +3,7 @@ from binance.exceptions import BinanceAPIException
 from datetime import datetime, timezone, timedelta
 import pandas as pd
 import logging
+from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,12 @@ class BinanceConnectionError(Exception):
     pass
 
 class BinanceAdmin():
-    def __init__(self, username, api_key_public, api_key_secret):
+    def __init__(
+        self, 
+        username: str,
+        api_key_public: str | None = None,
+        api_key_secret: str | None = None
+    ):
         self.username = username
         self.client = Client(api_key_public, api_key_secret)
 
@@ -59,7 +65,7 @@ class BinanceAdmin():
                 precio_actual = float(pos["markPrice"])
                 pnl_usdt = float(pos["unRealizedProfit"])
                 notional = abs(float(pos["notional"]))
-                isolated_margin = float(pos.get("isolatedMargin", 0) or 0)
+                isolated_margin = float(pos.get("isolatedWallet", 0) or 0)
 
                 leverage = round(notional / isolated_margin) if isolated_margin > 0 else None
                 pnl_pct = (pnl_usdt / isolated_margin) * 100.0 if isolated_margin > 0 else None
@@ -134,3 +140,20 @@ class BinanceAdmin():
         except BinanceAPIException as e:
             logger.error("Error al consultar posiciones activas", exc_info=True)
             raise BinanceConnectionError("No se pudieron obtener las posiciones de Binance") from e
+
+    def get_klines(self, symbol: str, interval: str, limit: int = 1500) -> list[dict]:
+        try:
+            velas = self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
+        except BinanceAPIException as e:
+            logger.error("Error al obtener klines", exc_info=True)
+            raise BinanceConnectionError("No se pudieron obtener las velas de Binance") from e
+        return [
+            {
+                "time": v[0] // 1000,
+                "open": float(v[1]),
+                "high": float(v[2]),
+                "low": float(v[3]),
+                "close": float(v[4]),
+            }
+            for v in velas
+        ]

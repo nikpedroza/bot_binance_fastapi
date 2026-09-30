@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 
 from repositories import BinanceKeysRepository
 from bnc import BinanceAdmin
 from bnc.binance_reader import BinanceConnectionError
-from schema import Status
+from schema import Status, Interval
 from models import Users
 from auth import get_current_user, decode_key
 from database import get_db
@@ -40,3 +40,15 @@ async def status(
         balance = balance,
         posiciones = posiciones
     )
+
+@router.get("/klines")
+async def klines(
+    current_user: Users = Depends(get_current_user),
+    symbol: str = Query(default="BTCUSDT", pattern=r"^[A-Z0-9]{5,20}$"),
+    interval: Interval = Query(default="15m")
+):
+    bnc = BinanceAdmin(current_user.username)
+    try:
+        return await asyncio.to_thread(bnc.get_klines, symbol, interval)
+    except BinanceConnectionError:
+        raise HTTPException(status_code=503, detail={"msg": "No se pudo conectar con Binance. Intente mas tarde."})

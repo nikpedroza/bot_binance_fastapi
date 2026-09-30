@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
+
+Interval = Literal["1m", "5m", "15m", "30m", "1h", "4h"]
 
 class ActivePositions(BaseModel):
     symbol: str
