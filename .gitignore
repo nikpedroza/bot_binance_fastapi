@@ -9,4 +9,7 @@ __pycache__/
 *.png
 *.jpg
 *.txt
+!requirements.txt
 static/
+*.md
+test_endpoint.py

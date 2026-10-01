@@ -63,4 +63,3 @@ class TradesRepository():
             order_id_tp=new_trade.order_id_tp,
         )
         self.db.add(insert_trade)
-        await self.db.commit()

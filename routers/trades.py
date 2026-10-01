@@ -24,9 +24,6 @@ async def trades(
     offset = (page - 1) * page_size
     trades_result, total = await trades_repo.get_trades_by_user(current_user.id, offset, page_size, symbol)
 
-    if not trades_result:
-        raise HTTPException(status_code=404, detail={"msg": "Usuario sin trades existentes"})
-
     return PaginatedTrades(
         data=trades_result,
         total=total,

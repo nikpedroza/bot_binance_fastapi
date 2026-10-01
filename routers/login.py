@@ -22,8 +22,10 @@ async def login(
     ip_cliente = request.client.host
     limit_existente = LOGIN_LIMIT_IP.get(ip_cliente, {})
 
-    if limit_existente.get("blocked_until") and datetime.now(timezone.utc) < limit_existente["blocked_until"]:
-        raise HTTPException(status_code=429, detail={"msg": "Demasiados intentos fallidos. Intente más tarde."})
+    if limit_existente.get("blocked_until"):
+        if datetime.now(timezone.utc) < limit_existente["blocked_until"]:
+            raise HTTPException(status_code=429, detail={"msg": "Demasiados intentos fallidos. Intente más tarde."})
+        limit_existente = {}
 
     user_repo = UsersRepository(db)
     usuario = await user_repo.get_user(income_user)

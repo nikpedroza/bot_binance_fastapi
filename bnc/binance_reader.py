@@ -3,7 +3,6 @@ from binance.exceptions import BinanceAPIException
 from datetime import datetime, timezone, timedelta
 import pandas as pd
 import logging
-from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class BinanceAdmin():
         api_key_secret: str | None = None
     ):
         self.username = username
-        self.client = Client(api_key_public, api_key_secret)
+        self.client = Client(api_key_public, api_key_secret, ping=False)
 
     def _buscar_sl_tp_activos(self, symbol: str) -> tuple[float | None, float | None]:
         sl, tp = None, None
@@ -70,27 +69,14 @@ class BinanceAdmin():
                 leverage = round(notional / isolated_margin) if isolated_margin > 0 else None
                 pnl_pct = (pnl_usdt / isolated_margin) * 100.0 if isolated_margin > 0 else None
 
-                distancia_sl_pct = None
-                distancia_tp_pct = None
                 symbol_cacheado = user_cacheado.get(symbol, {})
 
                 if symbol_cacheado and datetime.now(timezone.utc) - (symbol_cacheado.get("last_update") or datetime.min) < timedelta(seconds=30):
                     sl = symbol_cacheado.get("sl")
                     tp = symbol_cacheado.get("tp")
                     tiempo_entrada = symbol_cacheado.get("tiempo_entrada")
-                    direccion = 1 if tipo == "LONG" else -1
-                    if sl is not None and precio_actual != 0:
-                        distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
-                    if tp is not None and precio_actual != 0:
-                        distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
                 else:
                     sl, tp = self._buscar_sl_tp_activos(symbol)
-
-                    direccion = 1 if tipo == "LONG" else -1
-                    if sl is not None and precio_actual != 0:
-                        distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
-                    if tp is not None and precio_actual != 0:
-                        distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
 
                     tiempo_entrada = None
                     try:
@@ -115,6 +101,14 @@ class BinanceAdmin():
                         "tiempo_entrada": tiempo_entrada,
                         "last_update": datetime.now(timezone.utc)
                     }
+
+                distancia_sl_pct = None
+                distancia_tp_pct = None
+                direccion = 1 if tipo == "LONG" else -1
+                if sl is not None and precio_actual != 0:
+                    distancia_sl_pct = ((precio_actual - sl) / precio_actual) * 100.0 * direccion
+                if tp is not None and precio_actual != 0:
+                    distancia_tp_pct = ((tp - precio_actual) / precio_actual) * 100.0 * direccion
 
                 posiciones_abiertas.append({
                     "symbol": symbol,
@@ -141,7 +135,7 @@ class BinanceAdmin():
             logger.error("Error al consultar posiciones activas", exc_info=True)
             raise BinanceConnectionError("No se pudieron obtener las posiciones de Binance") from e
 
-    def get_klines(self, symbol: str, interval: str, limit: int = 1500) -> list[dict]:
+    def get_klines(self, symbol: str, interval: str, limit: int = 500) -> list[dict]:
         try:
             velas = self.client.futures_klines(symbol=symbol, interval=interval, limit=limit)
         except BinanceAPIException as e:
